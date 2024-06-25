@@ -1607,6 +1607,12 @@ public:
     return Instrs;
   }
 
+  InstructionListType createDummyReturnFunction(MCContext *Ctx) const override {
+    InstructionListType Insts(1);
+    createReturn(Insts[0]);
+    return Insts;
+  }
+
   std::vector<MCInst> createSymbolTrampoline(const MCSymbol *TgtSym,
                                              MCContext *Ctx) override {
     std::vector<MCInst> Insts;
