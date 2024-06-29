@@ -2644,16 +2644,16 @@ def DecomposeWinogradOp : Op<Transform_Dialect,
      TransformOpInterface, TransformEachOpTrait,
      ReportTrackingListenerFailuresOpTrait]> {
   let description = [{
-    Decompose winograd operators. It will convert filter, input and output
-    transform operators into a combination of scf, tensor, and linalg
-    equivalent operators. Before applying this transform operator, users
-    need to tile winograd transform operators into supported sizes.
+    Decompose winograd operations. It will convert filter, input and output
+    transform operations into a combination of scf, tensor, and linalg
+    equivalent operations. Before applying this transform operations, users
+    need to tile winograd transform operations into supported sizes.
 
     #### Return modes:
 
     This operation fails if `target` is unsupported. Otherwise, the operation
     succeeds and returns a handle of the sequence that replaces the original
-    operator.
+    operations.
   }];
 
   let arguments = (ins TransformHandleTypeInterface:$target);

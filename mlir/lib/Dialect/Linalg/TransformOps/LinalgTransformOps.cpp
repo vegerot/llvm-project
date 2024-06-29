@@ -3518,23 +3518,37 @@ DiagnosedSilenceableFailure transform::DecomposeWinogradOp::applyToOne(
     transform::ApplyToEachResultList &results,
     transform::TransformState &state) {
   rewriter.setInsertionPoint(target);
-  auto maybeTransformed =
-      TypeSwitch<Operation *, FailureOr<Operation *>>(target)
+  FailureOr<Operation *> maybeTransformed = failure();
+  bool supported =
+      TypeSwitch<Operation *, bool>(target)
           .Case([&](linalg::WinogradFilterTransformOp op) {
-            return decomposeWinogradFilterTransformOp(rewriter, op);
+            maybeTransformed = decomposeWinogradFilterTransformOp(rewriter, op);
+            return true;
           })
           .Case([&](linalg::WinogradInputTransformOp op) {
-            return decomposeWinogradInputTransformOp(rewriter, op);
+            maybeTransformed = decomposeWinogradInputTransformOp(rewriter, op);
+            return true;
           })
           .Case([&](linalg::WinogradOutputTransformOp op) {
-            return decomposeWinogradOutputTransformOp(rewriter, op);
+            maybeTransformed = decomposeWinogradOutputTransformOp(rewriter, op);
+            return true;
           })
-          .Default([&](Operation *op) {
-            return rewriter.notifyMatchFailure(op, "not supported");
-          });
+          .Default([&](Operation *op) { return false; });
 
-  if (failed(maybeTransformed))
-    return emitDefaultSilenceableFailure(target);
+  if (!supported) {
+    DiagnosedSilenceableFailure diag =
+        emitSilenceableError()
+        << "this operation is not supported to decompose into other operations";
+    diag.attachNote(target->getLoc()) << "target op";
+    return diag;
+  }
+
+  if (supported && failed(maybeTransformed)) {
+    DiagnosedSilenceableFailure diag =
+        emitSilenceableError() << "decompose Winograd operations failed";
+    diag.attachNote(target->getLoc()) << "target op";
+    return diag;
+  }
 
   results.push_back(*maybeTransformed);
   return DiagnosedSilenceableFailure::success();

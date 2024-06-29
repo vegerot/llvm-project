@@ -2755,92 +2755,18 @@ LogicalResult WinogradFilterTransformOp::verify() {
   return success();
 }
 
-SmallVector<Range>
-WinogradFilterTransformOp::getIterationDomain(OpBuilder &builder) {
-  Location loc = getLoc();
-  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
-  Value output = getOutput();
-  SmallVector<Range> loopBounds(6);
-  for (unsigned dim = 0; dim < 6; ++dim) {
-    loopBounds[dim].offset = zero;
-    loopBounds[dim].size = getDimValue(builder, loc, output, dim);
-    loopBounds[dim].stride = one;
-  }
-  return loopBounds;
-}
-
-SmallVector<utils::IteratorType>
-WinogradFilterTransformOp::getLoopIteratorTypes() {
-  SmallVector<utils::IteratorType> iteratorTypes(6,
-                                                 utils::IteratorType::parallel);
-  return iteratorTypes;
-}
-
-Value getValueFromOpFoldResult(OpFoldResult opFoldResult, OpBuilder &builder,
-                               Location loc) {
-  if (auto val = opFoldResult.dyn_cast<Value>()) {
-    return val;
-  } else if (auto attr = opFoldResult.dyn_cast<Attribute>()) {
-    auto intAttr = cast<IntegerAttr>(attr);
-    return builder.create<arith::ConstantOp>(loc, intAttr);
-  }
-  // This should never happen if OpFoldResult is correctly formed.
-  return nullptr;
-}
-
-LogicalResult WinogradFilterTransformOp::getResultTilePosition(
-    OpBuilder &builder, unsigned resultNumber, ArrayRef<OpFoldResult> offsets,
-    ArrayRef<OpFoldResult> sizes, SmallVector<OpFoldResult> &resultOffsets,
-    SmallVector<OpFoldResult> &resultSizes) {
-  auto zeroAttr = builder.getI64IntegerAttr(0);
-  auto oneAttr = builder.getI64IntegerAttr(1);
-
-  resultOffsets.push_back(offsets[0]);
-  resultOffsets.push_back(offsets[1]);
-  resultOffsets.push_back(zeroAttr);
-  resultOffsets.push_back(zeroAttr);
-  resultOffsets.push_back(zeroAttr);
-  resultOffsets.push_back(zeroAttr);
-  resultSizes.push_back(oneAttr);
-  resultSizes.push_back(oneAttr);
-  resultSizes.push_back(sizes[2]);
-  resultSizes.push_back(sizes[3]);
-  resultSizes.push_back(sizes[4]);
-  resultSizes.push_back(sizes[5]);
-
-  return success();
-}
-
-FailureOr<TilingResult> WinogradFilterTransformOp::getTiledImplementation(
-    OpBuilder &builder, ArrayRef<OpFoldResult> offsets,
-    ArrayRef<OpFoldResult> sizes) {
-  auto oneAttr = builder.getI64IntegerAttr(1);
-
-  Location loc = getLoc();
-  SmallVector<OpFoldResult> strides(6, oneAttr);
-  SmallVector<Value> tiledOperands;
-  tiledOperands.emplace_back(getFilter());
-
-  SmallVector<OpFoldResult> sliceOffsets, sliceSizes;
-  if (failed(getResultTilePosition(builder, 1, offsets, sizes, sliceOffsets,
-                                   sliceSizes)))
-    return failure();
-
-  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
-      loc, getOutput(), sliceOffsets, sliceSizes, strides));
-
-  SmallVector<Type, 4> resultTypes;
-  resultTypes.push_back(tiledOperands[1].getType());
-  Operation *tiledOp =
-      mlir::clone(builder, getOperation(), resultTypes, tiledOperands);
-
-  return TilingResult{{tiledOp}, SmallVector<Value>(tiledOp->getResults())};
-}
-
 //===----------------------------------------------------------------------===//
 // WinogradInputTransformOp
 //===----------------------------------------------------------------------===//
+
+Value getValueFromOpFoldResult(OpFoldResult opFoldResult, OpBuilder &builder,
+                               Location loc) {
+  if (auto attr = opFoldResult.dyn_cast<Attribute>()) {
+    auto intAttr = cast<IntegerAttr>(attr);
+    return builder.create<arith::ConstantOp>(loc, intAttr);
+  }
+  return opFoldResult.get<Value>();
+}
 
 LogicalResult WinogradInputTransformOp::verify() {
   auto inputType = cast<ShapedType>(getInput().getType());
@@ -2887,14 +2813,15 @@ LogicalResult WinogradInputTransformOp::verify() {
 SmallVector<Range>
 WinogradInputTransformOp::getIterationDomain(OpBuilder &builder) {
   Location loc = getLoc();
-  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  auto indexType = builder.getIndexType();
+  auto zeroAttr = builder.getIntegerAttr(indexType, 0);
+  auto oneAttr = builder.getIntegerAttr(indexType, 1);
   Value output = getOutput();
   SmallVector<Range> loopBounds(6);
   for (unsigned dim = 0; dim < 6; ++dim) {
-    loopBounds[dim].offset = zero;
+    loopBounds[dim].offset = zeroAttr;
     loopBounds[dim].size = getDimValue(builder, loc, output, dim);
-    loopBounds[dim].stride = one;
+    loopBounds[dim].stride = oneAttr;
   }
   return loopBounds;
 }
@@ -2913,16 +2840,16 @@ LogicalResult WinogradInputTransformOp::getResultTilePosition(
   auto zeroAttr = builder.getI64IntegerAttr(0);
   auto oneAttr = builder.getI64IntegerAttr(1);
 
-  resultOffsets.push_back(offsets[0]);
-  resultOffsets.push_back(offsets[1]);
   resultOffsets.push_back(zeroAttr);
   resultOffsets.push_back(zeroAttr);
+  resultOffsets.push_back(offsets[2]);
+  resultOffsets.push_back(offsets[3]);
   resultOffsets.push_back(zeroAttr);
   resultOffsets.push_back(zeroAttr);
+  resultSizes.push_back(sizes[0]);
+  resultSizes.push_back(sizes[1]);
   resultSizes.push_back(oneAttr);
   resultSizes.push_back(oneAttr);
-  resultSizes.push_back(sizes[2]);
-  resultSizes.push_back(sizes[3]);
   resultSizes.push_back(sizes[4]);
   resultSizes.push_back(sizes[5]);
 
@@ -2956,9 +2883,9 @@ WinogradInputTransformOp::getTiledImplementation(OpBuilder &builder,
   auto affineMap =
       AffineMap::get(1, 0, {builder.getAffineDimExpr(0) * m}, context);
   Value mappedOffset1 = builder.create<affine::AffineApplyOp>(
-      loc, affineMap, getValueFromOpFoldResult(offsets[0], builder, loc));
+      loc, affineMap, getValueFromOpFoldResult(offsets[2], builder, loc));
   Value mappedOffset2 = builder.create<affine::AffineApplyOp>(
-      loc, affineMap, getValueFromOpFoldResult(offsets[1], builder, loc));
+      loc, affineMap, getValueFromOpFoldResult(offsets[3], builder, loc));
 
   sliceOffsets.push_back(zeroAttr);
   sliceOffsets.push_back(mappedOffset1);
@@ -3033,14 +2960,15 @@ LogicalResult WinogradOutputTransformOp::verify() {
 SmallVector<Range>
 WinogradOutputTransformOp::getIterationDomain(OpBuilder &builder) {
   Location loc = getLoc();
-  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  auto indexType = builder.getIndexType();
+  auto zeroAttr = builder.getIntegerAttr(indexType, 0);
+  auto oneAttr = builder.getIntegerAttr(indexType, 1);
   Value value = getValue();
   SmallVector<Range> loopBounds(6);
   for (unsigned dim = 0; dim < 6; ++dim) {
-    loopBounds[dim].offset = zero;
+    loopBounds[dim].offset = zeroAttr;
     loopBounds[dim].size = getDimValue(builder, loc, value, dim);
-    loopBounds[dim].stride = one;
+    loopBounds[dim].stride = oneAttr;
   }
   return loopBounds;
 }
@@ -3071,9 +2999,9 @@ LogicalResult WinogradOutputTransformOp::getResultTilePosition(
   auto affineMap =
       AffineMap::get(1, 0, {builder.getAffineDimExpr(0) * m}, context);
   Value mappedOffset1 = builder.create<affine::AffineApplyOp>(
-      loc, affineMap, getValueFromOpFoldResult(offsets[0], builder, loc));
+      loc, affineMap, getValueFromOpFoldResult(offsets[2], builder, loc));
   Value mappedOffset2 = builder.create<affine::AffineApplyOp>(
-      loc, affineMap, getValueFromOpFoldResult(offsets[1], builder, loc));
+      loc, affineMap, getValueFromOpFoldResult(offsets[3], builder, loc));
 
   resultOffsets.push_back(zeroAttr);
   resultOffsets.push_back(mappedOffset1);
@@ -3095,16 +3023,16 @@ FailureOr<TilingResult> WinogradOutputTransformOp::getTiledImplementation(
   SmallVector<Value> tiledOperands;
   SmallVector<OpFoldResult> sliceOffsets, sliceSizes;
 
-  sliceOffsets.push_back(offsets[0]);
-  sliceOffsets.push_back(offsets[1]);
   sliceOffsets.push_back(zeroAttr);
   sliceOffsets.push_back(zeroAttr);
+  sliceOffsets.push_back(offsets[2]);
+  sliceOffsets.push_back(offsets[3]);
   sliceOffsets.push_back(zeroAttr);
   sliceOffsets.push_back(zeroAttr);
+  sliceSizes.push_back(sizes[0]);
+  sliceSizes.push_back(sizes[1]);
   sliceSizes.push_back(oneAttr);
   sliceSizes.push_back(oneAttr);
-  sliceSizes.push_back(sizes[2]);
-  sliceSizes.push_back(sizes[3]);
   sliceSizes.push_back(sizes[4]);
   sliceSizes.push_back(sizes[5]);
   SmallVector<OpFoldResult> sliceStrides(6, oneAttr);

@@ -155,12 +155,7 @@ def Linalg_SoftmaxOp : Linalg_Op<"softmax",
 }
 
 def Linalg_WinogradFilterTransformOp : Linalg_Op<"winograd_filter_transform",
-    [AllElementTypesMatch<["filter", "output"]>,
-     DeclareOpInterfaceMethods<TilingInterface,
-     ["getIterationDomain",
-      "getLoopIteratorTypes",
-      "getResultTilePosition",
-      "getTiledImplementation"]>]> {
+    [AllElementTypesMatch<["filter", "output"]>]> {
   let summary = "Winograd filter transform operator";
   let description = [{
     Winograd Conv2D algorithm will convert linalg Conv2D operator into batched
