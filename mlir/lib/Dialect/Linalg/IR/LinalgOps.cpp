@@ -3028,15 +3028,8 @@ LogicalResult WinogradOutputTransformOp::getResultTilePosition(
     ArrayRef<OpFoldResult> sizes, SmallVector<OpFoldResult> &resultOffsets,
     SmallVector<OpFoldResult> &resultSizes) {
   auto zeroAttr = builder.getI64IntegerAttr(0);
-  Value output = getOutput();
-  auto outputType = cast<ShapedType>(output.getType());
-  auto outputShape = outputType.getShape();
-  int64_t outputH = outputShape[1];
-  int64_t outputW = outputShape[2];
   int64_t m = getM();
-  auto heightM = builder.getI64IntegerAttr(outputH != 1 ? m : 1);
-  auto widthM = builder.getI64IntegerAttr(outputW != 1 ? m : 1);
-
+  IntegerAttr mAttr = getMAttr();
   Location loc = getLoc();
   auto context = builder.getContext();
   auto affineMap =
@@ -3051,8 +3044,8 @@ LogicalResult WinogradOutputTransformOp::getResultTilePosition(
   resultOffsets.push_back(mappedOffset2);
   resultOffsets.push_back(zeroAttr);
   resultSizes.push_back(sizes[4]);
-  resultSizes.push_back(heightM);
-  resultSizes.push_back(widthM);
+  resultSizes.push_back(mAttr);
+  resultSizes.push_back(mAttr);
   resultSizes.push_back(sizes[5]);
   return success();
 }
