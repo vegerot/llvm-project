@@ -154,12 +154,7 @@ def Linalg_SoftmaxOp : Linalg_Op<"softmax",
   let hasVerifier = 1;
 }
 
-def Linalg_WinogradFilterTransformOp : Linalg_Op<"winograd_filter_transform",
-    [DeclareOpInterfaceMethods<TilingInterface,
-     ["getIterationDomain",
-      "getLoopIteratorTypes",
-      "getResultTilePosition",
-      "getTiledImplementation"]>]> {
+def Linalg_WinogradFilterTransformOp : Linalg_Op<"winograd_filter_transform"> {
   let summary = "Winograd filter transform operator";
   let description = [{
     Winograd Conv2D algorithm will convert linalg Conv2D operator into batched
@@ -197,12 +192,7 @@ def Linalg_WinogradFilterTransformOp : Linalg_Op<"winograd_filter_transform",
   let hasVerifier = 1;
 }
 
-def Linalg_WinogradInputTransformOp : Linalg_Op<"winograd_input_transform",
-    [DeclareOpInterfaceMethods<TilingInterface,
-      ["getIterationDomain",
-       "getLoopIteratorTypes",
-       "getResultTilePosition",
-       "getTiledImplementation"]>]> {
+def Linalg_WinogradInputTransformOp : Linalg_Op<"winograd_input_transform"> {
   let summary = "Winograd input transform operator";
   let description = [{
     Winograd Conv2D algorithm will convert linalg Conv2D operator into batched
@@ -240,12 +230,7 @@ def Linalg_WinogradInputTransformOp : Linalg_Op<"winograd_input_transform",
   let hasVerifier = 1;
 }
 
-def Linalg_WinogradOutputTransformOp : Linalg_Op<"winograd_output_transform",
-    [DeclareOpInterfaceMethods<TilingInterface,
-      ["getIterationDomain",
-       "getLoopIteratorTypes",
-       "getResultTilePosition",
-       "getTiledImplementation"]>]> {
+def Linalg_WinogradOutputTransformOp : Linalg_Op<"winograd_output_transform"> {
   let summary = "Winograd output transform operator";
   let description = [{
     Winograd Conv2D algorithm will convert linalg Conv2D operator into batched
