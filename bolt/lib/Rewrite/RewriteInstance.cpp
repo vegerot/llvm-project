@@ -5291,6 +5291,19 @@ void RewriteInstance::patchELFGOT(ELFObjectFile<ELFT> *File) {
                                                      GOTContents.size());
        ++GOTEntry) {
     if (uint64_t NewAddress = getNewFunctionAddress(*GOTEntry)) {
+      auto *Function = BC->getBinaryFunctionAtAddress(*GOTEntry);
+
+      // On static binaries, avoid patching got entries that did not belong to
+      // the original text section. One such special case is the '_init'
+      // function, belonging to the '.init' section.
+      if (BC->IsStaticExecutable &&
+          Function->getOriginSectionName() != ".bolt.org.text") {
+        LLVM_DEBUG(dbgs() << "BOLT-DEBUG: ignoring GOT entry 0x"
+                          << Twine::utohexstr(*GOTEntry) << " for '"
+                          << Function->getOneName() << "'" << '\n');
+        continue;
+      }
+
       LLVM_DEBUG(dbgs() << "BOLT-DEBUG: patching GOT entry 0x"
                         << Twine::utohexstr(*GOTEntry) << " with 0x"
                         << Twine::utohexstr(NewAddress) << '\n');
