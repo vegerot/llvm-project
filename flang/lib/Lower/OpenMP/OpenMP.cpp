@@ -992,6 +992,29 @@ static OpTy genOpWithBody(const OpWithBodyGenInfo &info,
   return op;
 }
 
+template <typename OpTy, typename ClauseOpsTy>
+static OpTy genWrapperOp(lower::AbstractConverter &converter,
+                         mlir::Location loc, const ClauseOpsTy &clauseOps,
+                         llvm::ArrayRef<mlir::Type> blockArgTypes) {
+  static_assert(
+      OpTy::template hasTrait<mlir::omp::LoopWrapperInterface::Trait>(),
+      "expected a loop wrapper");
+  fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
+
+  // Create wrapper.
+  auto op = firOpBuilder.create<OpTy>(loc, clauseOps);
+
+  // Create entry block with arguments.
+  llvm::SmallVector<mlir::Location> locs{blockArgTypes.size(), loc};
+  firOpBuilder.createBlock(&op.getRegion(), /*insertPt=*/{}, blockArgTypes,
+                           locs);
+
+  firOpBuilder.setInsertionPoint(
+      lower::genOpenMPTerminator(firOpBuilder, op, loc));
+
+  return op;
+}
+
 //===----------------------------------------------------------------------===//
 // Code generation functions for clauses
 //===----------------------------------------------------------------------===//
@@ -1337,7 +1360,7 @@ genLoopNestOp(lower::AbstractConverter &converter, lower::SymMap &symTable,
               llvm::omp::Directive directive, DataSharingProcessor &dsp) {
   auto ivCallback = [&](mlir::Operation *op) {
     genLoopVars(op, converter, loc, iv, wrapperSyms, wrapperArgs);
-    return llvm::SmallVector<const semantics::Symbol *>(iv);
+    return llvm::SmallVector<const semantics::Symbol *>{iv};
   };
 
   auto *nestedEval =
@@ -1397,7 +1420,7 @@ static mlir::omp::ParallelOp genParallelOp(
 
   auto reductionCallback = [&](mlir::Operation *op) {
     genReductionVars(op, converter, loc, reductionSyms, reductionTypes);
-    return llvm::SmallVector<const semantics::Symbol *>(reductionSyms);
+    return llvm::SmallVector<const semantics::Symbol *>{reductionSyms};
   };
 
   OpWithBodyGenInfo genInfo =
@@ -1437,7 +1460,7 @@ static mlir::omp::ParallelOp genParallelOp(
     firOpBuilder.createBlock(&region, /*insertPt=*/{}, allRegionArgTypes,
                              allRegionArgLocs);
 
-    llvm::SmallVector<const semantics::Symbol *> allSymbols(reductionSyms);
+    llvm::SmallVector<const semantics::Symbol *> allSymbols{reductionSyms};
     allSymbols.append(dsp.getAllSymbolsToPrivatize().begin(),
                       dsp.getAllSymbolsToPrivatize().end());
 
@@ -1815,78 +1838,6 @@ genTeamsOp(lower::AbstractConverter &converter, lower::SymMap &symTable,
 }
 
 //===----------------------------------------------------------------------===//
-// Code generation functions for loop wrappers
-//===----------------------------------------------------------------------===//
-
-static mlir::omp::DistributeOp
-genDistributeWrapperOp(lower::AbstractConverter &converter,
-                       semantics::SemanticsContext &semaCtx,
-                       lower::pft::Evaluation &eval, mlir::Location loc,
-                       const mlir::omp::DistributeClauseOps &clauseOps) {
-  fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
-
-  // Create omp.distribute wrapper.
-  auto distributeOp =
-      firOpBuilder.create<mlir::omp::DistributeOp>(loc, clauseOps);
-
-  // TODO: Populate entry block arguments with private variables.
-  firOpBuilder.createBlock(&distributeOp.getRegion());
-  firOpBuilder.setInsertionPoint(
-      lower::genOpenMPTerminator(firOpBuilder, distributeOp, loc));
-
-  return distributeOp;
-}
-
-static mlir::omp::SimdOp
-genSimdWrapperOp(lower::AbstractConverter &converter,
-                 semantics::SemanticsContext &semaCtx,
-                 lower::pft::Evaluation &eval, mlir::Location loc,
-                 const mlir::omp::SimdClauseOps &clauseOps) {
-  fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
-
-  // Create omp.simd wrapper.
-  auto simdOp = firOpBuilder.create<mlir::omp::SimdOp>(loc, clauseOps);
-
-  // TODO: Populate entry block arguments with reduction and private variables.
-  firOpBuilder.createBlock(&simdOp.getRegion());
-  firOpBuilder.setInsertionPoint(
-      lower::genOpenMPTerminator(firOpBuilder, simdOp, loc));
-
-  return simdOp;
-}
-
-static mlir::omp::TaskloopOp
-genTaskloopWrapperOp(lower::AbstractConverter &converter,
-                     semantics::SemanticsContext &semaCtx,
-                     lower::pft::Evaluation &eval, mlir::Location loc,
-                     const mlir::omp::TaskloopClauseOps &clauseOps) {
-  TODO(loc, "Taskloop construct");
-}
-
-static mlir::omp::WsloopOp
-genWsloopWrapperOp(lower::AbstractConverter &converter,
-                   semantics::SemanticsContext &semaCtx,
-                   lower::pft::Evaluation &eval, mlir::Location loc,
-                   const mlir::omp::WsloopClauseOps &clauseOps,
-                   llvm::ArrayRef<const semantics::Symbol *> reductionSyms,
-                   llvm::ArrayRef<mlir::Type> reductionTypes) {
-  fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
-
-  // Create omp.wsloop wrapper.
-  llvm::SmallVector<mlir::Location> reductionLocs(reductionSyms.size(), loc);
-  auto wsloopOp = firOpBuilder.create<mlir::omp::WsloopOp>(loc, clauseOps);
-
-  // Populate entry block arguments with reduction variables.
-  // TODO: Add private variables to entry block arguments.
-  firOpBuilder.createBlock(&wsloopOp.getRegion(), {}, reductionTypes,
-                           reductionLocs);
-  firOpBuilder.setInsertionPoint(
-      lower::genOpenMPTerminator(firOpBuilder, wsloopOp, loc));
-
-  return wsloopOp;
-}
-
-//===----------------------------------------------------------------------===//
 // Code generation functions for the standalone version of constructs that can
 // also be a leaf of a composite construct
 //===----------------------------------------------------------------------===//
@@ -1907,8 +1858,9 @@ static void genStandaloneDistribute(
   genLoopNestClauses(converter, semaCtx, eval, item->clauses, loc,
                      loopNestClauseOps, iv);
 
-  auto distributeOp = genDistributeWrapperOp(converter, semaCtx, eval, loc,
-                                             distributeClauseOps);
+  // TODO: Populate entry block arguments with private variables.
+  auto distributeOp = genWrapperOp<mlir::omp::DistributeOp>(
+      converter, loc, distributeClauseOps, /*blockArgTypes=*/{});
 
   genLoopNestOp(converter, symTable, semaCtx, eval, loc, queue, item,
                 loopNestClauseOps, iv,
@@ -1936,9 +1888,9 @@ static void genStandaloneDo(lower::AbstractConverter &converter,
   genLoopNestClauses(converter, semaCtx, eval, item->clauses, loc,
                      loopNestClauseOps, iv);
 
-  auto wsloopOp =
-      genWsloopWrapperOp(converter, semaCtx, eval, loc, wsloopClauseOps,
-                         reductionSyms, reductionTypes);
+  // TODO: Add private variables to entry block arguments.
+  auto wsloopOp = genWrapperOp<mlir::omp::WsloopOp>(
+      converter, loc, wsloopClauseOps, reductionTypes);
 
   genLoopNestOp(converter, symTable, semaCtx, eval, loc, queue, item,
                 loopNestClauseOps, iv, reductionSyms,
@@ -1977,7 +1929,9 @@ static void genStandaloneSimd(lower::AbstractConverter &converter,
   genLoopNestClauses(converter, semaCtx, eval, item->clauses, loc,
                      loopNestClauseOps, iv);
 
-  auto simdOp = genSimdWrapperOp(converter, semaCtx, eval, loc, simdClauseOps);
+  // TODO: Populate entry block arguments with reduction and private variables.
+  auto simdOp = genWrapperOp<mlir::omp::SimdOp>(converter, loc, simdClauseOps,
+                                                /*blockArgTypes=*/{});
 
   genLoopNestOp(converter, symTable, semaCtx, eval, loc, queue, item,
                 loopNestClauseOps, iv,
