@@ -1409,13 +1409,14 @@ genOrderedRegionOp(lower::AbstractConverter &converter, lower::SymMap &symTable,
       queue, item, clauseOps);
 }
 
-static mlir::omp::ParallelOp genParallelOp(
-    lower::AbstractConverter &converter, lower::SymMap &symTable,
-    semantics::SemanticsContext &semaCtx, lower::pft::Evaluation &eval,
-    mlir::Location loc, const ConstructQueue &queue,
-    ConstructQueue::iterator item, mlir::omp::ParallelClauseOps &clauseOps,
-    llvm::ArrayRef<const semantics::Symbol *> reductionSyms,
-    llvm::ArrayRef<mlir::Type> reductionTypes) {
+static mlir::omp::ParallelOp
+genParallelOp(lower::AbstractConverter &converter, lower::SymMap &symTable,
+              semantics::SemanticsContext &semaCtx,
+              lower::pft::Evaluation &eval, mlir::Location loc,
+              const ConstructQueue &queue, ConstructQueue::iterator item,
+              mlir::omp::ParallelClauseOps &clauseOps,
+              llvm::ArrayRef<const semantics::Symbol *> reductionSyms,
+              llvm::ArrayRef<mlir::Type> reductionTypes) {
   fir::FirOpBuilder &firOpBuilder = converter.getFirOpBuilder();
 
   auto reductionCallback = [&](mlir::Operation *op) {
@@ -1898,17 +1899,20 @@ static void genStandaloneDo(lower::AbstractConverter &converter,
                 llvm::omp::Directive::OMPD_do, dsp);
 }
 
-static void genStandaloneParallel(
-    lower::AbstractConverter &converter, lower::SymMap &symTable,
-    semantics::SemanticsContext &semaCtx, lower::pft::Evaluation &eval,
-    mlir::Location loc, const ConstructQueue &queue, ConstructQueue::iterator item) {
+static void genStandaloneParallel(lower::AbstractConverter &converter,
+                                  lower::SymMap &symTable,
+                                  semantics::SemanticsContext &semaCtx,
+                                  lower::pft::Evaluation &eval,
+                                  mlir::Location loc,
+                                  const ConstructQueue &queue,
+                                  ConstructQueue::iterator item) {
   lower::StatementContext stmtCtx;
 
   mlir::omp::ParallelClauseOps clauseOps;
   llvm::SmallVector<const semantics::Symbol *> reductionSyms;
   llvm::SmallVector<mlir::Type> reductionTypes;
-  genParallelClauses(converter, semaCtx, stmtCtx, item->clauses, loc,
-                     clauseOps, reductionTypes, reductionSyms);
+  genParallelClauses(converter, semaCtx, stmtCtx, item->clauses, loc, clauseOps,
+                     reductionTypes, reductionSyms);
 
   genParallelOp(converter, symTable, semaCtx, eval, loc, queue, item, clauseOps,
                 reductionSyms, reductionTypes);
