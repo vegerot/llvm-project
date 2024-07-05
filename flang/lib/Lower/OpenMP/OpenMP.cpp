@@ -2004,11 +2004,13 @@ static void genCompositeDoSimd(lower::AbstractConverter &converter,
                      loopNestClauseOps, iv);
 
   // Operation creation.
-  auto wsloopOp =
-      genWsloopWrapperOp(converter, semaCtx, eval, loc, wsloopClauseOps,
-                         wsloopReductionSyms, wsloopReductionTypes);
+  // TODO: Add private variables to entry block arguments.
+  auto wsloopOp = genWrapperOp<mlir::omp::WsloopOp>(
+      converter, loc, wsloopClauseOps, wsloopReductionTypes);
 
-  auto simdOp = genSimdWrapperOp(converter, semaCtx, eval, loc, simdClauseOps);
+  // TODO: Populate entry block arguments with reduction and private variables.
+  auto simdOp = genWrapperOp<mlir::omp::SimdOp>(converter, loc, simdClauseOps,
+                                                /*blockArgTypes=*/{});
 
   // Construct wrapper entry block list and associated symbols. It is important
   // that the symbol and block argument order match, so that the symbol-value
