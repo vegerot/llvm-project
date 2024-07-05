@@ -3271,7 +3271,7 @@ public:
     return Insts;
   }
 
-  InstructionListType createDummyReturnFunction(MCContext *Ctx) const override {
+  InstructionListType createDummyReturn(MCContext *Ctx) const override {
     InstructionListType Insts(1);
     createReturn(Insts[0]);
     return Insts;
