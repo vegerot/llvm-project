@@ -1,7 +1,7 @@
 ! This test checks lowering of OpenMP DO SIMD composite constructs.
 
 ! RUN: bbc -fopenmp -emit-hlfir %s -o - | FileCheck %s
-! RUN: %flang_fc1 -emit-hlfir %openmp_flags %s -o - | FileCheck %s
+! RUN: %flang_fc1 -fopenmp -emit-hlfir %s -o - | FileCheck %s
 
 ! CHECK-LABEL: func.func @_QPdo_simd_aligned(
 subroutine do_simd_aligned(A)
